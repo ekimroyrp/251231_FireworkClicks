@@ -10,13 +10,17 @@ interface Firework {
   points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   halo: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   haloMaterial: THREE.PointsMaterial;
+  flash: THREE.Sprite;
+  flashMaterial: THREE.SpriteMaterial;
   velocities: Float32Array;
   baseColors: Float32Array;
+  baseColor: THREE.Color;
   dragFactors: Float32Array;
   sparkMask: Uint8Array;
   age: number;
   life: number;
   baseSize: number;
+  flashBaseScale: number;
 }
 
 const app = document.getElementById("app");
@@ -169,6 +173,7 @@ function spawnFirework(worldPosition: THREE.Vector3) {
   const radius = randomInRange(2.5, 20);
   const life = randomInRange(1.5, 2.8);
   const baseSize = randomInRange(0.06, 0.14);
+  const flashBaseScale = radius * randomInRange(0.35, 0.65);
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -236,17 +241,35 @@ function spawnFirework(worldPosition: THREE.Vector3) {
   scene.add(halo);
   scene.add(points);
 
+  const flashMaterial = new THREE.SpriteMaterial({
+    map: radialTexture,
+    color: baseColor.clone(),
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+    opacity: 0.9
+  });
+  const flash = new THREE.Sprite(flashMaterial);
+  flash.position.copy(worldPosition);
+  flash.position.z += 0.05;
+  flash.scale.setScalar(flashBaseScale);
+  scene.add(flash);
+
   fireworks.push({
     points,
     halo,
     haloMaterial,
+    flash,
+    flashMaterial,
     velocities,
     baseColors,
+    baseColor,
     dragFactors,
     sparkMask,
     age: 0,
     life,
-    baseSize
+    baseSize,
+    flashBaseScale
   });
 
   if (fireworks.length > maxFireworks) {
@@ -309,6 +332,9 @@ function updateFireworks(delta: number) {
     const haloMaterial = fw.haloMaterial;
     haloMaterial.opacity = material.opacity * 0.6;
     haloMaterial.size = material.size * 2.1;
+    fw.flashMaterial.opacity = Math.max(0, (1 - lifeProgress * 1.8));
+    fw.flashMaterial.color.copy(fw.baseColor);
+    fw.flash.scale.setScalar(fw.flashBaseScale * (0.85 + 0.3 * fade));
 
     if (fw.age >= fw.life) {
       disposeFireworkAt(i);
@@ -320,9 +346,11 @@ function disposeFireworkAt(index: number) {
   const fw = fireworks[index];
   scene.remove(fw.points);
   scene.remove(fw.halo);
+  scene.remove(fw.flash);
   fw.points.geometry.dispose();
   fw.points.material.dispose();
   fw.haloMaterial.dispose();
+  fw.flashMaterial.dispose();
   fireworks.splice(index, 1);
 }
 
