@@ -332,9 +332,10 @@ function updateFireworks(delta: number) {
     const haloMaterial = fw.haloMaterial;
     haloMaterial.opacity = material.opacity * 0.6;
     haloMaterial.size = material.size * 2.1;
-    fw.flashMaterial.opacity = Math.max(0, (1 - lifeProgress * 1.8));
+    const flashFade = Math.max(0, 1 - fw.age / 0.15);
+    fw.flashMaterial.opacity = flashFade;
     fw.flashMaterial.color.copy(fw.baseColor);
-    fw.flash.scale.setScalar(fw.flashBaseScale * (0.85 + 0.3 * fade));
+    fw.flash.scale.setScalar(fw.flashBaseScale * (0.7 + 0.4 * flashFade));
 
     if (fw.age >= fw.life) {
       disposeFireworkAt(i);
