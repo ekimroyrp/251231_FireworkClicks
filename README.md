@@ -1,18 +1,19 @@
 # 251231_FireworkClicks
 
-FireworkClicks is a lightweight playground for experimenting with click-driven fireworks visuals and simple score-friendly interactions. The repo starts as a clean scaffold so effects and gameplay can be layered in quickly.
+FireworkClicks is a minimal Three.js playground: a full-screen black canvas where every click (or drag) spawns a randomized firework burst at the pointer’s location—no menus, just explosions.
 
 ## Features
-- Contribution guardrails captured in `Guardrails.txt`.
-- Clean starting point ready for adding visuals, input handling, and scoring logic.
-- Placeholder notes for the planned click-to-firework loop.
+- Full-viewport Three.js renderer with additive particle fireworks.
+- Click-and-drag spawning that trails bursts along the drag path.
+- Randomized explosion size, color, and style (burst, ring, spray).
+- Vite + TypeScript tooling for fast dev/preview builds.
 
 ## Getting Started
-- Clone the repo: `git clone https://github.com/ekimroyrp/251231_FireworkClicks.git`
-- Open the folder in your editor to begin adding the game or simulation code.
-- No runtime dependencies yet; introduce your preferred engine/build setup as you implement features.
+- Install: `npm install`
+- Dev server: `npm run dev` (Vite) then open the shown localhost URL.
+- Build: `npm run build`; preview the bundle with `npm run preview`.
 
 ## Controls
-- Planned: primary click to launch fireworks.
-- Planned: optional keyboard shortcuts for effect variations.
-- Update this section as controls are implemented.
+- Left click anywhere: spawns a firework at that position.
+- Click and drag: spawns a chain of bursts along the drag.
+- Right click: disabled to keep focus on spawning.
