@@ -392,8 +392,11 @@ function updateFireworks(delta: number) {
     const trailSegments = fw.trailSegments;
 
     fw.age += delta;
+    const effectiveLife = fw.trailPersistent ? fw.life + 0.4 : fw.life;
     const lifeProgress = Math.min(1, fw.age / fw.life);
+    const displayProgress = Math.min(1, fw.age / effectiveLife);
     const fade = 1 - lifeProgress;
+    const displayFade = 1 - displayProgress;
 
     for (let p = 0; p < positions.count; p++) {
       const idx = p * 3;
@@ -456,32 +459,32 @@ function updateFireworks(delta: number) {
 
       const warmMix = Math.min(1, lifeProgress * 1.1);
       colorsArray[idx] =
-        THREE.MathUtils.lerp(baseColors[idx], warmColor.r, warmMix) * fade;
+        THREE.MathUtils.lerp(baseColors[idx], warmColor.r, warmMix) * displayFade;
       colorsArray[idx + 1] =
-        THREE.MathUtils.lerp(baseColors[idx + 1], warmColor.g, warmMix) * fade;
+        THREE.MathUtils.lerp(baseColors[idx + 1], warmColor.g, warmMix) * displayFade;
       colorsArray[idx + 2] =
-        THREE.MathUtils.lerp(baseColors[idx + 2], warmColor.b, warmMix) * fade;
+        THREE.MathUtils.lerp(baseColors[idx + 2], warmColor.b, warmMix) * displayFade;
     }
 
     positions.needsUpdate = true;
     colors.needsUpdate = true;
     trailPositionsAttr.needsUpdate = true;
     const material = fw.points.material as THREE.PointsMaterial;
-    material.opacity = Math.max(0, fade);
+    material.opacity = Math.max(0, displayFade);
     material.size = fw.baseSize * (0.45 + 0.55 * fade);
     const haloMaterial = fw.haloMaterial;
-    haloMaterial.opacity = material.opacity * 0.6;
+    haloMaterial.opacity = Math.max(0, displayFade) * 0.6;
     haloMaterial.size = material.size * 2.1;
     const trailMaterial = fw.trailMaterial;
-    const trailFade = fw.trailPersistent ? 1 : Math.max(0, 1 - lifeProgress * 2);
-    trailMaterial.opacity = fw.trailPersistent ? material.opacity : trailFade * fw.trailBaseOpacity;
-    trailMaterial.size = fw.baseSize * fw.trailSizeScale * (fw.trailPersistent ? (0.9 + 0.1 * fade) : (0.7 + 0.3 * trailFade));
+    const trailFade = fw.trailPersistent ? displayFade : Math.max(0, 1 - lifeProgress * 2);
+    trailMaterial.opacity = fw.trailPersistent ? displayFade : trailFade * fw.trailBaseOpacity;
+    trailMaterial.size = fw.baseSize * fw.trailSizeScale * (fw.trailPersistent ? (0.9 + 0.1 * displayFade) : (0.7 + 0.3 * trailFade));
     const flashFade = Math.max(0, 1 - fw.age / 0.15);
     fw.flashMaterial.opacity = flashFade;
     fw.flashMaterial.color.copy(fw.baseColor);
     fw.flash.scale.setScalar(fw.flashBaseScale * (0.6 + 0.2 * flashFade));
 
-    if (fw.age >= fw.life) {
+    if (fw.age >= effectiveLife) {
       disposeFireworkAt(i);
     }
   }
