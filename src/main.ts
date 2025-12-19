@@ -209,11 +209,12 @@ function spawnFirework(
   const baseSize = randomInRange(sizeRange[0], sizeRange[1]);
   const flashBaseScale = radius * randomInRange(0.05, 0.12);
   const enableFizzle = opts?.enableFizzle ?? true;
-  const fizzleChance = opts?.fizzleChance ?? 0.12;
+  const fizzleChance = opts?.fizzleChance ?? 0.25;
   const sparkProbability = opts?.sparkProbability ?? 0.18;
   const trailBaseOpacity = opts?.trailOpacity ?? 0.35;
   const trailSizeScale = opts?.trailSizeScale ?? 0.5;
   const applyCap = opts?.applyCap ?? true;
+  const burstWillFizzle = enableFizzle && Math.random() < fizzleChance;
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -224,7 +225,7 @@ function spawnFirework(
     const dir = makeDirection(style);
     const isSpark = Math.random() < sparkProbability;
     sparkMask[i] = isSpark ? 1 : 0;
-    fizzleMask[i] = enableFizzle && Math.random() < fizzleChance ? 1 : 0;
+    fizzleMask[i] = burstWillFizzle ? 1 : 0;
     const speedScale = isSpark ? randomInRange(1.35, 1.9) : randomInRange(0.6, 1.2);
     const speed = radius * speedScale;
     dir.multiplyScalar(speed);
