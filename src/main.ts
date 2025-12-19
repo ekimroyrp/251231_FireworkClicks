@@ -42,6 +42,7 @@ interface FireworkConfig {
   sparkProbability: number;
   trailOpacity: number;
   trailSizeScale: number;
+  applyCap: boolean;
 }
 
 const app = document.getElementById("app");
@@ -82,7 +83,7 @@ const tempColor = new THREE.Color();
 const fireworks: Firework[] = [];
 const gravity = new THREE.Vector3(0, -6, 0);
 const drag = 0.985;
-const maxFireworks = 60;
+const maxFireworks = 120;
 let pointerDown = false;
 let lastSpawnTime = 0;
 const dragSpawnIntervalMs = 1000 / 60; // ~60 bursts per second while dragging
@@ -212,6 +213,7 @@ function spawnFirework(
   const sparkProbability = opts?.sparkProbability ?? 0.18;
   const trailBaseOpacity = opts?.trailOpacity ?? 0.35;
   const trailSizeScale = opts?.trailSizeScale ?? 0.5;
+  const applyCap = opts?.applyCap ?? true;
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -345,7 +347,7 @@ function spawnFirework(
     trailSizeScale
   });
 
-  if (fireworks.length > maxFireworks) {
+  if (applyCap && fireworks.length > maxFireworks) {
     disposeFireworkAt(0);
   }
 }
@@ -417,7 +419,8 @@ function updateFireworks(delta: number) {
           fizzleChance: 0,
           sparkProbability: 0.5,
           trailOpacity: 0.15,
-          trailSizeScale: 0.3
+          trailSizeScale: 0.3,
+          applyCap: false
         });
         fizzleTriggered[p] = 1;
       }
