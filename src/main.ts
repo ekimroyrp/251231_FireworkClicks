@@ -43,6 +43,7 @@ const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const fireworks: Firework[] = [];
 const gravity = new THREE.Vector3(0, -6, 0);
 const drag = 0.985;
+const maxFireworks = 60;
 let pointerDown = false;
 let lastSpawnTime = 0;
 const dragSpawnIntervalMs = 60;
@@ -150,6 +151,10 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     life,
     baseSize
   });
+
+  if (fireworks.length > maxFireworks) {
+    disposeFireworkAt(0);
+  }
 }
 
 function updateFireworks(delta: number) {
@@ -185,12 +190,17 @@ function updateFireworks(delta: number) {
     material.size = fw.baseSize * (0.5 + 0.5 * fade);
 
     if (fw.age >= fw.life) {
-      scene.remove(fw.points);
-      geometry.dispose();
-      material.dispose();
-      fireworks.splice(i, 1);
+      disposeFireworkAt(i);
     }
   }
+}
+
+function disposeFireworkAt(index: number) {
+  const fw = fireworks[index];
+  scene.remove(fw.points);
+  fw.points.geometry.dispose();
+  fw.points.material.dispose();
+  fireworks.splice(index, 1);
 }
 
 function getWorldPositionFromPointer(event: PointerEvent): THREE.Vector3 | null {
