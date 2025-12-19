@@ -173,7 +173,7 @@ function spawnFirework(worldPosition: THREE.Vector3) {
   const radius = randomInRange(2.5, 20);
   const life = randomInRange(1.5, 2.8);
   const baseSize = randomInRange(0.06, 0.14);
-  const flashBaseScale = radius * randomInRange(0.35, 0.65);
+  const flashBaseScale = radius * randomInRange(0.05, 0.12);
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -335,7 +335,7 @@ function updateFireworks(delta: number) {
     const flashFade = Math.max(0, 1 - fw.age / 0.15);
     fw.flashMaterial.opacity = flashFade;
     fw.flashMaterial.color.copy(fw.baseColor);
-    fw.flash.scale.setScalar(fw.flashBaseScale * (0.7 + 0.4 * flashFade));
+    fw.flash.scale.setScalar(fw.flashBaseScale * (0.6 + 0.2 * flashFade));
 
     if (fw.age >= fw.life) {
       disposeFireworkAt(i);
