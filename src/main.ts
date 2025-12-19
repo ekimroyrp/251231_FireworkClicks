@@ -20,10 +20,28 @@ interface Firework {
   baseColor: THREE.Color;
   dragFactors: Float32Array;
   sparkMask: Uint8Array;
+  fizzleMask: Uint8Array;
+  fizzleTriggered: Uint8Array;
+  enableFizzle: boolean;
   age: number;
   life: number;
   baseSize: number;
   flashBaseScale: number;
+  trailBaseOpacity: number;
+  trailSizeScale: number;
+}
+
+interface FireworkConfig {
+  countRange: [number, number];
+  radiusRange: [number, number];
+  lifeRange: [number, number];
+  sizeRange: [number, number];
+  baseColor?: THREE.Color;
+  enableFizzle: boolean;
+  fizzleChance: number;
+  sparkProbability: number;
+  trailOpacity: number;
+  trailSizeScale: number;
 }
 
 const app = document.getElementById("app");
@@ -58,6 +76,8 @@ scene.add(camera);
 const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const warmColor = new THREE.Color(1, 0.6, 0.25);
+const tempVec3 = new THREE.Vector3();
+const tempColor = new THREE.Color();
 
 const fireworks: Firework[] = [];
 const gravity = new THREE.Vector3(0, -6, 0);
@@ -163,21 +183,35 @@ function makeDirection(style: FireworkStyle): THREE.Vector3 {
   return v;
 }
 
-function spawnFirework(worldPosition: THREE.Vector3) {
+function spawnFirework(
+  worldPosition: THREE.Vector3,
+  opts?: Partial<FireworkConfig>
+) {
   const style = pickStyle();
-  const particleCount = Math.floor(randomInRange(60, 300));
+  const countRange = opts?.countRange ?? [60, 300];
+  const radiusRange = opts?.radiusRange ?? [2.5, 20];
+  const lifeRange = opts?.lifeRange ?? [1.5, 2.8];
+  const sizeRange = opts?.sizeRange ?? [0.06, 0.14];
+  const particleCount = Math.floor(randomInRange(countRange[0], countRange[1]));
   const positions = new Float32Array(particleCount * 3);
   const velocities = new Float32Array(particleCount * 3);
   const colors = new Float32Array(particleCount * 3);
   const baseColors = new Float32Array(particleCount * 3);
   const dragFactors = new Float32Array(particleCount);
   const sparkMask = new Uint8Array(particleCount);
-  const baseColor = randomColor();
+  const fizzleMask = new Uint8Array(particleCount);
+  const fizzleTriggered = new Uint8Array(particleCount);
+  const baseColor = opts?.baseColor ? opts.baseColor.clone() : randomColor();
   const trailPositions = new Float32Array(particleCount * 3);
-  const radius = randomInRange(2.5, 20);
-  const life = randomInRange(1.5, 2.8);
-  const baseSize = randomInRange(0.06, 0.14);
+  const radius = randomInRange(radiusRange[0], radiusRange[1]);
+  const life = randomInRange(lifeRange[0], lifeRange[1]);
+  const baseSize = randomInRange(sizeRange[0], sizeRange[1]);
   const flashBaseScale = radius * randomInRange(0.05, 0.12);
+  const enableFizzle = opts?.enableFizzle ?? true;
+  const fizzleChance = opts?.fizzleChance ?? 0.12;
+  const sparkProbability = opts?.sparkProbability ?? 0.18;
+  const trailBaseOpacity = opts?.trailOpacity ?? 0.35;
+  const trailSizeScale = opts?.trailSizeScale ?? 0.5;
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -186,8 +220,9 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     positions[idx + 2] = worldPosition.z + randomInRange(-0.25, 0.25);
 
     const dir = makeDirection(style);
-    const isSpark = Math.random() < 0.18;
+    const isSpark = Math.random() < sparkProbability;
     sparkMask[i] = isSpark ? 1 : 0;
+    fizzleMask[i] = enableFizzle && Math.random() < fizzleChance ? 1 : 0;
     const speedScale = isSpark ? randomInRange(1.35, 1.9) : randomInRange(0.6, 1.2);
     const speed = radius * speedScale;
     dir.multiplyScalar(speed);
@@ -249,13 +284,13 @@ function spawnFirework(worldPosition: THREE.Vector3) {
   }
   trailGeometry.setAttribute("color", new THREE.BufferAttribute(trailColors, 3));
   const trailMaterial = new THREE.PointsMaterial({
-    size: baseSize * 0.5,
+    size: baseSize * trailSizeScale,
     sizeAttenuation: true,
     vertexColors: true,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    opacity: 0.35,
+    opacity: trailBaseOpacity,
     map: radialTexture,
     alphaMap: radialTexture,
     alphaTest: 0.01
@@ -299,10 +334,15 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     baseColor,
     dragFactors,
     sparkMask,
+    fizzleMask,
+    fizzleTriggered,
+    enableFizzle,
     age: 0,
     life,
     baseSize,
-    flashBaseScale
+    flashBaseScale,
+    trailBaseOpacity,
+    trailSizeScale
   });
 
   if (fireworks.length > maxFireworks) {
@@ -322,6 +362,8 @@ function updateFireworks(delta: number) {
     const dragFactors = fw.dragFactors;
     const baseColors = fw.baseColors;
     const sparkMask = fw.sparkMask;
+    const fizzleMask = fw.fizzleMask;
+    const fizzleTriggered = fw.fizzleTriggered;
     const trailGeometry = fw.trail.geometry;
     const trailPositionsAttr = trailGeometry.getAttribute("position") as THREE.BufferAttribute;
     const trailPositionsArray = trailPositionsAttr.array as Float32Array;
@@ -336,6 +378,7 @@ function updateFireworks(delta: number) {
       trailPositionsArray[idx + 1] = positionsArray[idx + 1];
       trailPositionsArray[idx + 2] = positionsArray[idx + 2];
 
+      const prevVy = velocities[idx + 1];
       const dragFactor = dragFactors[p];
       velocities[idx] *= drag * dragFactor;
       velocities[idx + 1] *= drag * dragFactor;
@@ -354,6 +397,30 @@ function updateFireworks(delta: number) {
       positionsArray[idx] += velocities[idx] * delta;
       positionsArray[idx + 1] += velocities[idx + 1] * delta;
       positionsArray[idx + 2] += velocities[idx + 2] * delta;
+
+      if (
+        fw.enableFizzle &&
+        fizzleMask[p] === 1 &&
+        fizzleTriggered[p] === 0 &&
+        prevVy > 0 &&
+        velocities[idx + 1] <= 0
+      ) {
+        tempVec3.set(positionsArray[idx], positionsArray[idx + 1], positionsArray[idx + 2]);
+        tempColor.setRGB(baseColors[idx], baseColors[idx + 1], baseColors[idx + 2]);
+        spawnFirework(tempVec3, {
+          countRange: [10, 22],
+          radiusRange: [0.6, 1.4],
+          lifeRange: [0.25, 0.55],
+          sizeRange: [0.03, 0.06],
+          baseColor: tempColor,
+          enableFizzle: false,
+          fizzleChance: 0,
+          sparkProbability: 0.5,
+          trailOpacity: 0.15,
+          trailSizeScale: 0.3
+        });
+        fizzleTriggered[p] = 1;
+      }
 
       const warmMix = Math.min(1, lifeProgress * 1.1);
       colorsArray[idx] =
@@ -375,8 +442,8 @@ function updateFireworks(delta: number) {
     haloMaterial.size = material.size * 2.1;
     const trailMaterial = fw.trailMaterial;
     const trailFade = Math.max(0, 1 - lifeProgress * 2);
-    trailMaterial.opacity = trailFade * 0.35;
-    trailMaterial.size = fw.baseSize * (0.35 + 0.25 * trailFade);
+    trailMaterial.opacity = trailFade * fw.trailBaseOpacity;
+    trailMaterial.size = fw.baseSize * fw.trailSizeScale * (0.7 + 0.3 * trailFade);
     const flashFade = Math.max(0, 1 - fw.age / 0.15);
     fw.flashMaterial.opacity = flashFade;
     fw.flashMaterial.color.copy(fw.baseColor);
