@@ -24,9 +24,11 @@ interface Firework {
   fizzleMask: Uint8Array;
   fizzleTriggered: Uint8Array;
   enableFizzle: boolean;
-  spiralBurst: boolean;
+  spiralMode: "none" | "shared" | "chaotic";
   spinAxis: THREE.Vector3;
   spinSpeed: number;
+  chaoticSpinAxes: Float32Array;
+  chaoticSpinSpeeds: Float32Array;
   trailPersistent: boolean;
   age: number;
   life: number;
@@ -84,6 +86,7 @@ const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const warmColor = new THREE.Color(1, 0.6, 0.25);
 const tempVec3 = new THREE.Vector3();
+const tempAxis = new THREE.Vector3();
 const tempColor = new THREE.Color();
 
 const fireworks: Firework[] = [];
@@ -91,7 +94,8 @@ const gravity = new THREE.Vector3(0, -6, 0);
 const drag = 0.985;
 const maxFireworks = 120;
 const longTrailChance = 0.25;
-const spiralBurstChance = 0.25;
+const spiralBurstChanceShared = 0.1;
+const spiralBurstChanceChaotic = 0.1;
 let pointerDown = false;
 let lastSpawnTime = 0;
 const dragSpawnIntervalMs = 1000 / 60; // ~60 bursts per second while dragging
@@ -225,12 +229,18 @@ function spawnFirework(
   const trailSizeScale = opts?.trailSizeScale ?? (usePersistentTrail ? 0.9 : 0.5);
   const applyCap = opts?.applyCap ?? true;
   const burstWillFizzle = enableFizzle && Math.random() < fizzleChance;
-  const spiralBurst = Math.random() < spiralBurstChance;
-  const spinAxis = spiralBurst ? new THREE.Vector3().copy(makeDirection("burst")) : new THREE.Vector3(0, 0, 0);
-  if (spiralBurst) {
-    spinAxis.normalize();
+  const spinAxis = new THREE.Vector3(0, 0, 0);
+  let spiralMode: "none" | "shared" | "chaotic" = "none";
+  const roll = Math.random();
+  if (roll < spiralBurstChanceShared) {
+    spiralMode = "shared";
+    spinAxis.copy(makeDirection("burst")).normalize();
+  } else if (roll < spiralBurstChanceShared + spiralBurstChanceChaotic) {
+    spiralMode = "chaotic";
   }
-  const spinSpeed = spiralBurst ? randomInRange(2, 6) : 0;
+  const spinSpeed = spiralMode === "shared" ? randomInRange(2, 6) : 0;
+  const chaoticSpinAxes = new Float32Array(particleCount * 3);
+  const chaoticSpinSpeeds = new Float32Array(particleCount);
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -248,6 +258,15 @@ function spawnFirework(
     velocities[idx] = dir.x;
     velocities[idx + 1] = dir.y;
     velocities[idx + 2] = dir.z;
+
+    if (spiralMode === "chaotic") {
+      const axis = makeDirection("burst");
+      const speedSpin = randomInRange(2, 6) * (Math.random() < 0.5 ? -1 : 1);
+      chaoticSpinAxes[idx] = axis.x;
+      chaoticSpinAxes[idx + 1] = axis.y;
+      chaoticSpinAxes[idx + 2] = axis.z;
+      chaoticSpinSpeeds[i] = speedSpin;
+    }
 
     const tint = baseColor.clone().offsetHSL(randomInRange(-0.05, 0.05), 0, randomInRange(-0.08, 0.08));
     const brightnessBoost = isSpark ? 0.2 : 0;
@@ -368,9 +387,11 @@ function spawnFirework(
     fizzleMask,
     fizzleTriggered,
     enableFizzle,
-    spiralBurst,
+    spiralMode,
     spinAxis,
     spinSpeed,
+    chaoticSpinAxes,
+    chaoticSpinSpeeds,
     trailPersistent: usePersistentTrail,
     age: 0,
     life,
@@ -405,6 +426,8 @@ function updateFireworks(delta: number) {
     const trailSegments = fw.trailSegments;
     const spinAxis = fw.spinAxis;
     const spinSpeed = fw.spinSpeed;
+    const chaoticSpinAxes = fw.chaoticSpinAxes;
+    const chaoticSpinSpeeds = fw.chaoticSpinSpeeds;
 
     fw.age += delta;
     const effectiveLife = fw.trailPersistent ? fw.life + 0.4 : fw.life;
@@ -439,12 +462,26 @@ function updateFireworks(delta: number) {
       velocities[idx + 1] += (Math.random() - 0.5) * jitter * delta;
       velocities[idx + 2] += (Math.random() - 0.5) * jitter * delta;
 
-      if (fw.spiralBurst && spinSpeed > 0) {
+      if (fw.spiralMode === "shared" && spinSpeed !== 0) {
         tempVec3.set(velocities[idx], velocities[idx + 1], velocities[idx + 2]);
         tempVec3.applyAxisAngle(spinAxis, spinSpeed * delta);
         velocities[idx] = tempVec3.x;
         velocities[idx + 1] = tempVec3.y;
         velocities[idx + 2] = tempVec3.z;
+      } else if (fw.spiralMode === "chaotic") {
+        const axisIdx = idx;
+        const axisX = chaoticSpinAxes[axisIdx];
+        const axisY = chaoticSpinAxes[axisIdx + 1];
+        const axisZ = chaoticSpinAxes[axisIdx + 2];
+        const localSpeed = chaoticSpinSpeeds[p];
+        if (localSpeed !== 0 && (axisX !== 0 || axisY !== 0 || axisZ !== 0)) {
+          tempVec3.set(velocities[idx], velocities[idx + 1], velocities[idx + 2]);
+          tempAxis.set(axisX, axisY, axisZ);
+          tempVec3.applyAxisAngle(tempAxis, localSpeed * delta);
+          velocities[idx] = tempVec3.x;
+          velocities[idx + 1] = tempVec3.y;
+          velocities[idx + 2] = tempVec3.z;
+        }
       }
 
       velocities[idx] += gravity.x * delta;
