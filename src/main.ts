@@ -46,7 +46,7 @@ const drag = 0.985;
 const maxFireworks = 60;
 let pointerDown = false;
 let lastSpawnTime = 0;
-const dragSpawnIntervalMs = 60;
+const dragSpawnIntervalMs = 1000 / 60; // ~60 bursts per second while dragging
 
 function resize() {
   const width = window.innerWidth;
@@ -104,7 +104,7 @@ function spawnFirework(worldPosition: THREE.Vector3) {
   const velocities = new Float32Array(particleCount * 3);
   const colors = new Float32Array(particleCount * 3);
   const baseColor = randomColor();
-  const radius = randomInRange(2.5, 4.6);
+  const radius = randomInRange(2.5, 10);
   const life = randomInRange(1.5, 2.8);
   const baseSize = randomInRange(0.06, 0.14);
 
