@@ -588,6 +588,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   pointerDown = true;
   lastSpawnTime = performance.now();
   handlePointer(event);
+  const cta = document.getElementById("cta");
+  if (cta) {
+    cta.remove();
+  }
 });
 
 renderer.domElement.addEventListener("pointermove", (event) => {
