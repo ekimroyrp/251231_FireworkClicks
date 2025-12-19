@@ -30,6 +30,7 @@ interface Firework {
   chaoticSpinAxes: Float32Array;
   chaoticSpinSpeeds: Float32Array;
   trailPersistent: boolean;
+  brightnessScale: number;
   age: number;
   life: number;
   baseSize: number;
@@ -104,13 +105,13 @@ const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.6,
+  0.4,
   0.8,
   0.2
 );
-bloomPass.threshold = 0.05;
-bloomPass.strength = 0.65;
-bloomPass.radius = 0.5;
+bloomPass.threshold = 0.1;
+bloomPass.strength = 0.5;
+bloomPass.radius = 0.35;
 composer.addPass(renderPass);
 composer.addPass(bloomPass);
 
@@ -229,6 +230,8 @@ function spawnFirework(
   const trailSizeScale = opts?.trailSizeScale ?? (usePersistentTrail ? 0.9 : 0.5);
   const applyCap = opts?.applyCap ?? true;
   const burstWillFizzle = enableFizzle && Math.random() < fizzleChance;
+  const radiusFactor = THREE.MathUtils.clamp(radius / 20, 0.4, 1);
+  const brightnessScale = radiusFactor * (usePersistentTrail ? 0.8 : 1);
   const spinAxis = new THREE.Vector3(0, 0, 0);
   let spiralMode: "none" | "shared" | "chaotic" = "none";
   const roll = Math.random();
@@ -393,6 +396,7 @@ function spawnFirework(
     chaoticSpinAxes,
     chaoticSpinSpeeds,
     trailPersistent: usePersistentTrail,
+    brightnessScale,
     age: 0,
     life,
     baseSize,
@@ -532,14 +536,17 @@ function updateFireworks(delta: number) {
     colors.needsUpdate = true;
     trailPositionsAttr.needsUpdate = true;
     const material = fw.points.material as THREE.PointsMaterial;
-    material.opacity = Math.max(0, displayFade);
+    material.opacity = Math.max(0, displayFade) * fw.brightnessScale;
     material.size = fw.baseSize * (0.45 + 0.55 * displayFade);
     const haloMaterial = fw.haloMaterial;
-    haloMaterial.opacity = Math.max(0, displayFade) * 0.6;
+    haloMaterial.opacity = Math.max(0, displayFade) * 0.6 * fw.brightnessScale;
     haloMaterial.size = material.size * 2.1;
     const trailMaterial = fw.trailMaterial;
     const trailFade = fw.trailPersistent ? displayFade : Math.max(0, 1 - lifeProgress * 2);
-    trailMaterial.opacity = fw.trailPersistent ? displayFade : trailFade * fw.trailBaseOpacity;
+    const trailBrightness = fw.trailPersistent ? fw.brightnessScale : 1;
+    trailMaterial.opacity = fw.trailPersistent
+      ? displayFade * trailBrightness
+      : trailFade * fw.trailBaseOpacity;
     trailMaterial.size = fw.baseSize * fw.trailSizeScale * (fw.trailPersistent ? (0.9 + 0.1 * displayFade) : (0.7 + 0.3 * trailFade));
     const flashFade = Math.max(0, 1 - fw.age / 0.15);
     fw.flashMaterial.opacity = flashFade;
