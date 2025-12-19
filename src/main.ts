@@ -430,11 +430,13 @@ function updateFireworks(delta: number) {
     const chaoticSpinSpeeds = fw.chaoticSpinSpeeds;
 
     fw.age += delta;
-    const effectiveLife = fw.trailPersistent ? fw.life + 0.4 : fw.life;
+    const effectiveLife = fw.trailPersistent ? fw.life + 1 : fw.life;
     const lifeProgress = Math.min(1, fw.age / fw.life);
     const displayProgress = Math.min(1, fw.age / effectiveLife);
-    const fade = 1 - lifeProgress;
-    const displayFade = 1 - displayProgress;
+    const baseFade = 1 - lifeProgress;
+    const displayFade = fw.trailPersistent
+      ? THREE.MathUtils.smootherstep(1 - displayProgress, 0, 1)
+      : baseFade;
 
     for (let p = 0; p < positions.count; p++) {
       const idx = p * 3;
@@ -531,7 +533,7 @@ function updateFireworks(delta: number) {
     trailPositionsAttr.needsUpdate = true;
     const material = fw.points.material as THREE.PointsMaterial;
     material.opacity = Math.max(0, displayFade);
-    material.size = fw.baseSize * (0.45 + 0.55 * fade);
+    material.size = fw.baseSize * (0.45 + 0.55 * displayFade);
     const haloMaterial = fw.haloMaterial;
     haloMaterial.opacity = Math.max(0, displayFade) * 0.6;
     haloMaterial.size = material.size * 2.1;
