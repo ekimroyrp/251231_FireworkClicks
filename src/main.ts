@@ -208,7 +208,7 @@ function spawnFirework(
   const fizzleTriggered = new Uint8Array(particleCount);
   const baseColor = opts?.baseColor ? opts.baseColor.clone() : randomColor();
   const usePersistentTrail = opts?.trailPersistent ?? (Math.random() < longTrailChance);
-  const trailSegments = usePersistentTrail ? 50 : 1;
+  const trailSegments = usePersistentTrail ? 50 : 5;
   const trailPositions = new Float32Array(particleCount * trailSegments * 3);
   const radius = randomInRange(radiusRange[0], radiusRange[1]);
   const life = randomInRange(lifeRange[0], lifeRange[1]);
