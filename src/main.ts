@@ -24,6 +24,9 @@ interface Firework {
   fizzleMask: Uint8Array;
   fizzleTriggered: Uint8Array;
   enableFizzle: boolean;
+  spiralBurst: boolean;
+  spinAxis: THREE.Vector3;
+  spinSpeed: number;
   trailPersistent: boolean;
   age: number;
   life: number;
@@ -88,6 +91,7 @@ const gravity = new THREE.Vector3(0, -6, 0);
 const drag = 0.985;
 const maxFireworks = 120;
 const longTrailChance = 0.25;
+const spiralBurstChance = 0.25;
 let pointerDown = false;
 let lastSpawnTime = 0;
 const dragSpawnIntervalMs = 1000 / 60; // ~60 bursts per second while dragging
@@ -221,6 +225,12 @@ function spawnFirework(
   const trailSizeScale = opts?.trailSizeScale ?? (usePersistentTrail ? 0.9 : 0.5);
   const applyCap = opts?.applyCap ?? true;
   const burstWillFizzle = enableFizzle && Math.random() < fizzleChance;
+  const spiralBurst = Math.random() < spiralBurstChance;
+  const spinAxis = spiralBurst ? new THREE.Vector3().copy(makeDirection("burst")) : new THREE.Vector3(0, 0, 0);
+  if (spiralBurst) {
+    spinAxis.normalize();
+  }
+  const spinSpeed = spiralBurst ? randomInRange(2, 6) : 0;
 
   for (let i = 0; i < particleCount; i++) {
     const idx = i * 3;
@@ -358,6 +368,9 @@ function spawnFirework(
     fizzleMask,
     fizzleTriggered,
     enableFizzle,
+    spiralBurst,
+    spinAxis,
+    spinSpeed,
     trailPersistent: usePersistentTrail,
     age: 0,
     life,
@@ -390,6 +403,8 @@ function updateFireworks(delta: number) {
     const trailPositionsAttr = trailGeometry.getAttribute("position") as THREE.BufferAttribute;
     const trailPositionsArray = trailPositionsAttr.array as Float32Array;
     const trailSegments = fw.trailSegments;
+    const spinAxis = fw.spinAxis;
+    const spinSpeed = fw.spinSpeed;
 
     fw.age += delta;
     const effectiveLife = fw.trailPersistent ? fw.life + 0.4 : fw.life;
@@ -423,6 +438,14 @@ function updateFireworks(delta: number) {
       velocities[idx] += (Math.random() - 0.5) * jitter * delta;
       velocities[idx + 1] += (Math.random() - 0.5) * jitter * delta;
       velocities[idx + 2] += (Math.random() - 0.5) * jitter * delta;
+
+      if (fw.spiralBurst && spinSpeed > 0) {
+        tempVec3.set(velocities[idx], velocities[idx + 1], velocities[idx + 2]);
+        tempVec3.applyAxisAngle(spinAxis, spinSpeed * delta);
+        velocities[idx] = tempVec3.x;
+        velocities[idx + 1] = tempVec3.y;
+        velocities[idx + 2] = tempVec3.z;
+      }
 
       velocities[idx] += gravity.x * delta;
       velocities[idx + 1] += gravity.y * delta;
