@@ -8,6 +8,8 @@ type FireworkStyle = "burst" | "ring" | "spray";
 
 interface Firework {
   points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  halo: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  haloMaterial: THREE.PointsMaterial;
   velocities: Float32Array;
   baseColors: Float32Array;
   dragFactors: Float32Array;
@@ -214,12 +216,30 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     alphaTest: 0.01
   });
 
+  const haloMaterial = new THREE.PointsMaterial({
+    size: baseSize * 2.2,
+    sizeAttenuation: true,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    opacity: 0.55,
+    map: radialTexture,
+    alphaMap: radialTexture,
+    alphaTest: 0.01
+  });
+
   const points = new THREE.Points(geometry, material);
+  const halo = new THREE.Points(geometry, haloMaterial);
   points.frustumCulled = false;
+  halo.frustumCulled = false;
+  scene.add(halo);
   scene.add(points);
 
   fireworks.push({
     points,
+    halo,
+    haloMaterial,
     velocities,
     baseColors,
     dragFactors,
@@ -286,6 +306,9 @@ function updateFireworks(delta: number) {
     const material = fw.points.material as THREE.PointsMaterial;
     material.opacity = Math.max(0, fade);
     material.size = fw.baseSize * (0.45 + 0.55 * fade);
+    const haloMaterial = fw.haloMaterial;
+    haloMaterial.opacity = material.opacity * 0.6;
+    haloMaterial.size = material.size * 2.1;
 
     if (fw.age >= fw.life) {
       disposeFireworkAt(i);
@@ -296,8 +319,10 @@ function updateFireworks(delta: number) {
 function disposeFireworkAt(index: number) {
   const fw = fireworks[index];
   scene.remove(fw.points);
+  scene.remove(fw.halo);
   fw.points.geometry.dispose();
   fw.points.material.dispose();
+  fw.haloMaterial.dispose();
   fireworks.splice(index, 1);
 }
 
