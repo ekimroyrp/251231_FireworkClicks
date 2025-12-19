@@ -3,9 +3,9 @@
 FireworkClicks is a minimal Three.js playground: a full-screen black canvas where every click (or drag) spawns a randomized firework burst at the pointer’s location—no menus, just explosions.
 
 ## Features
-- Full-viewport Three.js renderer with additive particle fireworks.
-- Click-and-drag spawning that trails bursts along the drag path.
-- Randomized explosion size, color, and style (burst, ring, spray).
+- Full-viewport Three.js renderer with additive, glowing particle fireworks (bloom + radial sprite).
+- Click-and-drag spawning that trails bursts along the drag path (up to ~60 bursts/sec).
+- Randomized explosion size, color, and style (burst, ring, spray) with warm fade and sparkier outliers.
 - Vite + TypeScript tooling for fast dev/preview builds.
 
 ## Getting Started
