@@ -10,6 +10,9 @@ interface Firework {
   points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   halo: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   haloMaterial: THREE.PointsMaterial;
+  trail: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  trailMaterial: THREE.PointsMaterial;
+  trailPositions: Float32Array;
   flash: THREE.Sprite;
   flashMaterial: THREE.SpriteMaterial;
   velocities: Float32Array;
@@ -170,6 +173,7 @@ function spawnFirework(worldPosition: THREE.Vector3) {
   const dragFactors = new Float32Array(particleCount);
   const sparkMask = new Uint8Array(particleCount);
   const baseColor = randomColor();
+  const trailPositions = new Float32Array(particleCount * 3);
   const radius = randomInRange(2.5, 20);
   const life = randomInRange(1.5, 2.8);
   const baseSize = randomInRange(0.06, 0.14);
@@ -202,6 +206,9 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     baseColors[idx + 2] = colors[idx + 2];
 
     dragFactors[i] = randomInRange(0.97, 0.995);
+    trailPositions[idx] = positions[idx];
+    trailPositions[idx + 1] = positions[idx + 1];
+    trailPositions[idx + 2] = positions[idx + 2];
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -234,10 +241,33 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     alphaTest: 0.01
   });
 
+  const trailGeometry = new THREE.BufferGeometry();
+  trailGeometry.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
+  const trailColors = new Float32Array(baseColors.length);
+  for (let i = 0; i < baseColors.length; i++) {
+    trailColors[i] = baseColors[i] * 0.9;
+  }
+  trailGeometry.setAttribute("color", new THREE.BufferAttribute(trailColors, 3));
+  const trailMaterial = new THREE.PointsMaterial({
+    size: baseSize * 0.5,
+    sizeAttenuation: true,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    opacity: 0.35,
+    map: radialTexture,
+    alphaMap: radialTexture,
+    alphaTest: 0.01
+  });
+
   const points = new THREE.Points(geometry, material);
   const halo = new THREE.Points(geometry, haloMaterial);
+  const trail = new THREE.Points(trailGeometry, trailMaterial);
   points.frustumCulled = false;
   halo.frustumCulled = false;
+  trail.frustumCulled = false;
+  scene.add(trail);
   scene.add(halo);
   scene.add(points);
 
@@ -259,6 +289,9 @@ function spawnFirework(worldPosition: THREE.Vector3) {
     points,
     halo,
     haloMaterial,
+    trail,
+    trailMaterial,
+    trailPositions,
     flash,
     flashMaterial,
     velocities,
@@ -289,6 +322,9 @@ function updateFireworks(delta: number) {
     const dragFactors = fw.dragFactors;
     const baseColors = fw.baseColors;
     const sparkMask = fw.sparkMask;
+    const trailGeometry = fw.trail.geometry;
+    const trailPositionsAttr = trailGeometry.getAttribute("position") as THREE.BufferAttribute;
+    const trailPositionsArray = trailPositionsAttr.array as Float32Array;
 
     fw.age += delta;
     const lifeProgress = Math.min(1, fw.age / fw.life);
@@ -296,6 +332,10 @@ function updateFireworks(delta: number) {
 
     for (let p = 0; p < positions.count; p++) {
       const idx = p * 3;
+      trailPositionsArray[idx] = positionsArray[idx];
+      trailPositionsArray[idx + 1] = positionsArray[idx + 1];
+      trailPositionsArray[idx + 2] = positionsArray[idx + 2];
+
       const dragFactor = dragFactors[p];
       velocities[idx] *= drag * dragFactor;
       velocities[idx + 1] *= drag * dragFactor;
@@ -326,12 +366,17 @@ function updateFireworks(delta: number) {
 
     positions.needsUpdate = true;
     colors.needsUpdate = true;
+    trailPositionsAttr.needsUpdate = true;
     const material = fw.points.material as THREE.PointsMaterial;
     material.opacity = Math.max(0, fade);
     material.size = fw.baseSize * (0.45 + 0.55 * fade);
     const haloMaterial = fw.haloMaterial;
     haloMaterial.opacity = material.opacity * 0.6;
     haloMaterial.size = material.size * 2.1;
+    const trailMaterial = fw.trailMaterial;
+    const trailFade = Math.max(0, 1 - lifeProgress * 2);
+    trailMaterial.opacity = trailFade * 0.35;
+    trailMaterial.size = fw.baseSize * (0.35 + 0.25 * trailFade);
     const flashFade = Math.max(0, 1 - fw.age / 0.15);
     fw.flashMaterial.opacity = flashFade;
     fw.flashMaterial.color.copy(fw.baseColor);
@@ -347,10 +392,13 @@ function disposeFireworkAt(index: number) {
   const fw = fireworks[index];
   scene.remove(fw.points);
   scene.remove(fw.halo);
+  scene.remove(fw.trail);
   scene.remove(fw.flash);
   fw.points.geometry.dispose();
   fw.points.material.dispose();
   fw.haloMaterial.dispose();
+  fw.trail.geometry.dispose();
+  fw.trailMaterial.dispose();
   fw.flashMaterial.dispose();
   fireworks.splice(index, 1);
 }
