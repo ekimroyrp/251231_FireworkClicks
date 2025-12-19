@@ -13,6 +13,7 @@ interface Firework {
   trail: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   trailMaterial: THREE.PointsMaterial;
   trailPositions: Float32Array;
+  trailSegments: number;
   flash: THREE.Sprite;
   flashMaterial: THREE.SpriteMaterial;
   velocities: Float32Array;
@@ -23,6 +24,7 @@ interface Firework {
   fizzleMask: Uint8Array;
   fizzleTriggered: Uint8Array;
   enableFizzle: boolean;
+  trailPersistent: boolean;
   age: number;
   life: number;
   baseSize: number;
@@ -43,6 +45,7 @@ interface FireworkConfig {
   trailOpacity: number;
   trailSizeScale: number;
   applyCap: boolean;
+  trailPersistent?: boolean;
 }
 
 const app = document.getElementById("app");
@@ -84,6 +87,7 @@ const fireworks: Firework[] = [];
 const gravity = new THREE.Vector3(0, -6, 0);
 const drag = 0.985;
 const maxFireworks = 120;
+const longTrailChance = 0.25;
 let pointerDown = false;
 let lastSpawnTime = 0;
 const dragSpawnIntervalMs = 1000 / 60; // ~60 bursts per second while dragging
@@ -203,7 +207,9 @@ function spawnFirework(
   const fizzleMask = new Uint8Array(particleCount);
   const fizzleTriggered = new Uint8Array(particleCount);
   const baseColor = opts?.baseColor ? opts.baseColor.clone() : randomColor();
-  const trailPositions = new Float32Array(particleCount * 3);
+  const usePersistentTrail = opts?.trailPersistent ?? (Math.random() < longTrailChance);
+  const trailSegments = usePersistentTrail ? 50 : 1;
+  const trailPositions = new Float32Array(particleCount * trailSegments * 3);
   const radius = randomInRange(radiusRange[0], radiusRange[1]);
   const life = randomInRange(lifeRange[0], lifeRange[1]);
   const baseSize = randomInRange(sizeRange[0], sizeRange[1]);
@@ -211,8 +217,8 @@ function spawnFirework(
   const enableFizzle = opts?.enableFizzle ?? true;
   const fizzleChance = opts?.fizzleChance ?? 0.25;
   const sparkProbability = opts?.sparkProbability ?? 0.18;
-  const trailBaseOpacity = opts?.trailOpacity ?? 0.35;
-  const trailSizeScale = opts?.trailSizeScale ?? 0.5;
+  const trailBaseOpacity = opts?.trailOpacity ?? (usePersistentTrail ? 1 : 0.35);
+  const trailSizeScale = opts?.trailSizeScale ?? (usePersistentTrail ? 0.9 : 0.5);
   const applyCap = opts?.applyCap ?? true;
   const burstWillFizzle = enableFizzle && Math.random() < fizzleChance;
 
@@ -244,9 +250,12 @@ function spawnFirework(
     baseColors[idx + 2] = colors[idx + 2];
 
     dragFactors[i] = randomInRange(0.97, 0.995);
-    trailPositions[idx] = positions[idx];
-    trailPositions[idx + 1] = positions[idx + 1];
-    trailPositions[idx + 2] = positions[idx + 2];
+    for (let s = 0; s < trailSegments; s++) {
+      const tIdx = i * trailSegments * 3 + s * 3;
+      trailPositions[tIdx] = positions[idx];
+      trailPositions[tIdx + 1] = positions[idx + 1];
+      trailPositions[tIdx + 2] = positions[idx + 2];
+    }
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -281,9 +290,17 @@ function spawnFirework(
 
   const trailGeometry = new THREE.BufferGeometry();
   trailGeometry.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
-  const trailColors = new Float32Array(baseColors.length);
-  for (let i = 0; i < baseColors.length; i++) {
-    trailColors[i] = baseColors[i] * 0.9;
+  const trailColors = new Float32Array(trailPositions.length);
+  for (let i = 0; i < particleCount; i++) {
+    for (let s = 0; s < trailSegments; s++) {
+      const colorIdx = i * trailSegments * 3 + s * 3;
+      const fadeFactor = usePersistentTrail
+        ? 1 - s / Math.max(1, trailSegments - 1)
+        : 0.9;
+      trailColors[colorIdx] = baseColors[i * 3] * fadeFactor;
+      trailColors[colorIdx + 1] = baseColors[i * 3 + 1] * fadeFactor;
+      trailColors[colorIdx + 2] = baseColors[i * 3 + 2] * fadeFactor;
+    }
   }
   trailGeometry.setAttribute("color", new THREE.BufferAttribute(trailColors, 3));
   const trailMaterial = new THREE.PointsMaterial({
@@ -330,6 +347,7 @@ function spawnFirework(
     trail,
     trailMaterial,
     trailPositions,
+    trailSegments,
     flash,
     flashMaterial,
     velocities,
@@ -340,6 +358,7 @@ function spawnFirework(
     fizzleMask,
     fizzleTriggered,
     enableFizzle,
+    trailPersistent: usePersistentTrail,
     age: 0,
     life,
     baseSize,
@@ -370,6 +389,7 @@ function updateFireworks(delta: number) {
     const trailGeometry = fw.trail.geometry;
     const trailPositionsAttr = trailGeometry.getAttribute("position") as THREE.BufferAttribute;
     const trailPositionsArray = trailPositionsAttr.array as Float32Array;
+    const trailSegments = fw.trailSegments;
 
     fw.age += delta;
     const lifeProgress = Math.min(1, fw.age / fw.life);
@@ -377,9 +397,17 @@ function updateFireworks(delta: number) {
 
     for (let p = 0; p < positions.count; p++) {
       const idx = p * 3;
-      trailPositionsArray[idx] = positionsArray[idx];
-      trailPositionsArray[idx + 1] = positionsArray[idx + 1];
-      trailPositionsArray[idx + 2] = positionsArray[idx + 2];
+      const baseTrailIdx = p * trailSegments * 3;
+      for (let s = trailSegments - 1; s > 0; s--) {
+        const curr = baseTrailIdx + s * 3;
+        const prev = baseTrailIdx + (s - 1) * 3;
+        trailPositionsArray[curr] = trailPositionsArray[prev];
+        trailPositionsArray[curr + 1] = trailPositionsArray[prev + 1];
+        trailPositionsArray[curr + 2] = trailPositionsArray[prev + 2];
+      }
+      trailPositionsArray[baseTrailIdx] = positionsArray[idx];
+      trailPositionsArray[baseTrailIdx + 1] = positionsArray[idx + 1];
+      trailPositionsArray[baseTrailIdx + 2] = positionsArray[idx + 2];
 
       const prevVy = velocities[idx + 1];
       const dragFactor = dragFactors[p];
@@ -445,9 +473,9 @@ function updateFireworks(delta: number) {
     haloMaterial.opacity = material.opacity * 0.6;
     haloMaterial.size = material.size * 2.1;
     const trailMaterial = fw.trailMaterial;
-    const trailFade = Math.max(0, 1 - lifeProgress * 2);
-    trailMaterial.opacity = trailFade * fw.trailBaseOpacity;
-    trailMaterial.size = fw.baseSize * fw.trailSizeScale * (0.7 + 0.3 * trailFade);
+    const trailFade = fw.trailPersistent ? 1 : Math.max(0, 1 - lifeProgress * 2);
+    trailMaterial.opacity = fw.trailPersistent ? material.opacity : trailFade * fw.trailBaseOpacity;
+    trailMaterial.size = fw.baseSize * fw.trailSizeScale * (fw.trailPersistent ? (0.9 + 0.1 * fade) : (0.7 + 0.3 * trailFade));
     const flashFade = Math.max(0, 1 - fw.age / 0.15);
     fw.flashMaterial.opacity = flashFade;
     fw.flashMaterial.color.copy(fw.baseColor);
